@@ -26,5 +26,5 @@ Once you have set up your private keys and configured the application, you can r
 ```bash
 # Run the bridge application
 pip install -r requirements 
-python bridge.py
+python main.py
 ```
