@@ -103,10 +103,6 @@ class Across:
         logger.info(f"[{self.address}] Total Balance is {amount}")
         data = self.calculate_suggested_fees(amount_wei, to_chain)
         if data:
-            logger.info(
-                f"[{self.address}][ACROSS] bridge to {to_chain} | {amount} ETH"
-            )
-
             timestamp, relay_fee_pact = data
             params = [Web3.to_checksum_address(self.address), Web3.to_checksum_address(ZKSYNC_TOKENS["WETH"]),
                       amount_wei, self.chain_ids[to_chain], int(relay_fee_pact), int(timestamp), b"", UINT256_MAX_UINT]
