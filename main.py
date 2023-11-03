@@ -5,11 +5,12 @@ from loguru import logger
 
 from config import ACCOUNTS
 from modules.across import Across
-from settings import FROM_CHAIN, TO_CHAIN, AMOUNT_FROM, AMOUNT_TO, TRANSFER_ALL_AMOUNT, KEEP_VALUE_FROM, KEEP_VALUE_TO, SLEEP_FROM, SLEEP_TO
+from settings import FROM_CHAIN, TO_CHAIN, AMOUNT_FROM, AMOUNT_TO, TRANSFER_ALL_AMOUNT, KEEP_VALUE_FROM, KEEP_VALUE_TO, SLEEP_FROM, SLEEP_TO, SHUFFLE_WALLETS
 
 
 def main():
-    random.shuffle(ACCOUNTS)
+    if SHUFFLE_WALLETS:
+        random.shuffle(ACCOUNTS)
     for index, private_key in enumerate(ACCOUNTS):
         across = Across(FROM_CHAIN, private_key, index)
         try:

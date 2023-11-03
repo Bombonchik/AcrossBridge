@@ -1,10 +1,12 @@
-AMOUNT_FROM = 0.00045
-AMOUNT_TO = 0.00046
+AMOUNT_FROM = 0.08
+AMOUNT_TO = 0.086
 # Chain list: "zksync", "arbitrum", "optimism", "base"
-FROM_CHAIN = "arbitrum" 
-TO_CHAIN = "zksync" 
+FROM_CHAIN = "zksync" 
+TO_CHAIN = "optimism" 
 
-TRANSFER_ALL_AMOUNT = True
+SHUFFLE_WALLETS = True
+
+TRANSFER_ALL_AMOUNT = False
 KEEP_VALUE_FROM = 0.00019 # used only when TRANSFER_ALL_AMOUNT = TRUE
 KEEP_VALUE_TO = 0.0003 # used only when TRANSFER_ALL_AMOUNT = TRUE
 
