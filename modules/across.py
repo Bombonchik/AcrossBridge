@@ -8,29 +8,26 @@ from web3 import Web3
 from eth_account import Account as EthereumAccount
 from web3.exceptions import TransactionNotFound
 
-from config import ZKSYNC_SPOKE_POOL_ADDRESS, ZKSYNC_TOKENS, ACROSS_ABI, RPC, UINT256_MAX_UINT
+from config import SPOKE_POOL_ADDRESSES, CHAIN_IDS, TOKEN_CONTRACTS, ACROSS_ABI, RPC, UINT256_MAX_UINT, MAX_WAIT_TIME
 
 
 class Across:
-    def __init__(self, private_key: str, account_index) -> None:
+    def __init__(self, from_chain: str, private_key: str, account_index) -> None:
         self.account_id = account_index
         self.private_key = private_key
         self.account = EthereumAccount.from_key(private_key)
         self.address = self.account.address
 
-        self.chain = 'zksync'
-        self.explorer = RPC[self.chain]["explorer"]
-        self.token = RPC[self.chain]["token"]
-        self.w3 = Web3(Web3.HTTPProvider(RPC['zksync']["rpc"]))
+        self.from_chain = from_chain
+        self.explorer = RPC[self.from_chain]["explorer"]
+        self.token = RPC[self.from_chain]["token"]
+        self.w3 = Web3(Web3.HTTPProvider(RPC[self.from_chain]["rpc"]))
 
         self.suggested_fees_base_api = 'https://across.to/api/suggested-fees'
 
-        self.contract = self.w3.eth.contract(address=Web3.to_checksum_address(ZKSYNC_SPOKE_POOL_ADDRESS), abi=ACROSS_ABI)
+        self.contract = self.w3.eth.contract(address=Web3.to_checksum_address(SPOKE_POOL_ADDRESSES[self.from_chain]), abi=ACROSS_ABI)
 
-        self.chain_ids = {
-            "optimism": 10,
-            "arbitrum": 42161,
-        }
+        self.chain_ids = CHAIN_IDS
 
     def get_tx_data(self, amount: int):
         tx = {
@@ -43,7 +40,7 @@ class Across:
 
     def calculate_suggested_fees(self, amount, to_chain):
         params = {
-            'token': ZKSYNC_TOKENS['WETH'],
+            'token': TOKEN_CONTRACTS[self.from_chain]['WETH'],
             'destinationChainId': self.chain_ids[to_chain],
             'amount': amount,
         }
@@ -54,25 +51,27 @@ class Across:
             relay_fee_pact = parsed_data['relayFeePct']
             return timestamp, relay_fee_pact
         else:
-            raise Exception(f'got non 200 status code from across suggested-fees API - {response.status_code}')
+            logger.error(f"Failed API call. HTTP Status: {response.status_code}, Content: {response.text}")
+
 
     def get_amount(
-            self,
-            min_amount,
-            max_amount,
-            all_amount,
-            keep_value_from,
-            keep_value_to,
+        self,
+        min_amount,
+        max_amount,
+        transfer_all_amount,
+        keep_value_from,
+        keep_value_to,
     ):
         keep_value = round(random.uniform(keep_value_from, keep_value_to), 5)
         random_amount = round(random.uniform(min_amount, max_amount), 5)
-        balance = self.w3.eth.get_balance(self.address) - int(Web3.to_wei(keep_value, "ether"))
-        amount_wei = balance if all_amount else Web3.to_wei(random_amount, "ether")
-        amount = Web3.from_wei(balance, "ether") if all_amount else random_amount
+        balance = self.w3.eth.get_balance(self.address)
+        all_amount = balance - int(Web3.to_wei(keep_value, "ether"))
+        amount_wei = all_amount if transfer_all_amount else Web3.to_wei(random_amount, "ether")
+        amount = Web3.from_wei(all_amount, "ether") if transfer_all_amount else random_amount
 
-        return amount_wei, amount, balance
+        return amount_wei, amount, Web3.from_wei(balance, "ether")
                 
-    def wait_until_tx_finished(self, hash, max_wait_time=180):
+    def wait_until_tx_finished(self, hash, max_wait_time=MAX_WAIT_TIME):
         start_time = time.time()
         while True:
             try:
@@ -91,21 +90,21 @@ class Across:
                     raise Exception('tx failed')
                 time.sleep(1)
 
-    def deposit(self, to_chain: str, min_amount, max_amount, keep_value_from=0, keep_value_to=0, all_amount=False):
-        logger.info(f'[{self.address}][{self.account_id}][ACROSS] starting bridge zksync->Arbitrum')
+    def deposit(self, to_chain: str, min_amount, max_amount, keep_value_from=0, keep_value_to=0, transfer_all_amount=False):
+        logger.info(f'[{self.address}][{self.account_id}][ACROSS] starting bridge {self.from_chain}->{to_chain}')
         amount_wei, amount, balance = self.get_amount(
             min_amount,
             max_amount,
-            all_amount=all_amount,
+            transfer_all_amount=transfer_all_amount,
             keep_value_from=keep_value_from,
             keep_value_to=keep_value_to
         )
-        logger.info(f"[{self.address}] Total Balance is {amount}")
+        logger.info(f"[{self.address}] Total Balance is {balance}")
         data = self.calculate_suggested_fees(amount_wei, to_chain)
         if data:
             timestamp, relay_fee_pact = data
-            params = [Web3.to_checksum_address(self.address), Web3.to_checksum_address(ZKSYNC_TOKENS["WETH"]),
-                      amount_wei, self.chain_ids[to_chain], int(relay_fee_pact), int(timestamp), b"", UINT256_MAX_UINT]
+            params = [Web3.to_checksum_address(self.address), Web3.to_checksum_address(TOKEN_CONTRACTS[self.from_chain]["WETH"]),
+                    amount_wei, self.chain_ids[to_chain], int(relay_fee_pact), int(timestamp), b"", UINT256_MAX_UINT]
 
             transaction = self.contract.functions.deposit(*params).build_transaction(self.get_tx_data(amount_wei))
 
@@ -119,4 +118,4 @@ class Across:
 
             return self.wait_until_tx_finished(txn_hash.hex())
         else:
-            raise Exception('couldnt fetch across suggested fee')
+            raise Exception("Couldn not fetch across suggested fee")
