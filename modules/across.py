@@ -118,4 +118,4 @@ class Across:
 
             return self.wait_until_tx_finished(txn_hash.hex())
         else:
-            raise Exception("Couldn not fetch across suggested fee")
+            raise Exception("Could not fetch Across suggested fee")
